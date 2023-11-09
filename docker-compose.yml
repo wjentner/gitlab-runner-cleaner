@@ -1,0 +1,17 @@
+version: '3.12'
+
+services:
+  clean_runners:
+    image: wjentner.io/gitlab-clean-runners:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - '~/.kube/config:/root/.kube/config'
+    # environment:
+      # GRC_NAMESPACE: '<GITLAB RUNNER NAMESPACE>'
+      # GRC_CONTEXT: '<KUBERNETES CONTEXT>'
+      # GRC_HOUR_THRESHOLD: 1.5
+      # GRC_RESOURCE_PREFIX: 'runner-'
+      # GRC_RESOURCES: 'pod,secret,configmap'
+      # GRC_NUM_RETRIES: 10
