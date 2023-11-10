@@ -1,6 +1,6 @@
 # Gitlab Runner Cleaner
 
-This is a simple script that will clean up leftover resources created.
+This is a simple script that will clean up leftover resources (pods, secrets, configmaps) created by gitlab runners (kubernetes executor).
 The most common cause are timeouts of the kubernetes API.
 
 > DANGER: This script uses a simple heuristic. 
@@ -24,7 +24,78 @@ The script can be configured using environment variables.
 
 ### Kubernetes CronJob (preferred)
 
+This assumes that the cronjob is in the same namespace as the gitlab runners.
+This manifest will create the required service account and RBAC to allow the GRC deleting the resources.
+If the GRC is in a different namespace, you will need to adjust the RBAC and environment variables.
+The CronJob is scheduled to run every hour.
+
+```yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitlab-runner-cleaner
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitlab-runner-cleaner
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - secrets
+  - configmaps
+  verbs:
+  - list
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitlab-runner-cleaner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitlab-runner-cleaner
+subjects:
+- kind: ServiceAccount
+  name: gitlab-runner-cleaner
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: gitlab-runner-cleaner
+spec:
+  schedule: 0 * * * *
+  concurrencyPolicy: Allow
+  suspend: false
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          containers:
+            - name: grc
+              image: ghcr.io/wjentner/gitlab-runner-cleaner:latest
+              imagePullPolicy: Always
+              env:
+                # GRC_NAMESPACE: <current-namespace>
+                # GRC_CONTEXT: <current-context-of-service-account>
+                # GRC_HOUR_THRESHOLD: 1.5
+                # GRC_RESOURCE_PREFIX: runner-
+                # GRC_RESOURCES: 'pod,secret,configmap'
+                # GRC_NUM_RETRIES: 10
+          restartPolicy: OnFailure
+          serviceAccountName: gitlab-runner-cleaner
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+```
+
 ### Docker
+
+This file mounts your default kubernetes config into the container. Make sure to adjust the environment variables.
 
 ```shell
 docker run --rm -v ~/.kube/config:/root/.kube/config -e GRC_NAMESPACE=<GITLAB-RUNNER-NAMESPACE> ghcr.io/wjentner/gitlab-runner-cleaner:latest
@@ -41,10 +112,7 @@ services:
   clean_runners:
     image: ghcr.io/wjentner/gitlab-runner-cleaner:latest
     volumes:
-      # Linux / Mac
       - '~/.kube/config:/root/.kube/config'
-      # Windows
-      - 
     environment:
       GRC_NAMESPACE: '<GITLAB RUNNER NAMESPACE>'
       # GRC_CONTEXT: '<KUBERNETES CONTEXT>'
