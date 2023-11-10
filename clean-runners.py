@@ -1,9 +1,12 @@
 import datetime
 import os
+import logging
 
 from kubernetes import client, config
 from datetime import datetime, timezone
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+LOGGER = logging.getLogger(__name__)
 
 def _get_current_namespace() -> str:
     """
@@ -31,8 +34,22 @@ if os.getenv('GRC_RESOURCES'):
     CLEAN_RESOURCES = str(os.getenv('GRC_RESOURCES')).split(',')
     CLEAN_RESOURCES = [item[0:-1].lower() + item[-1].lower().replace('s', '') for item in CLEAN_RESOURCES]
 
-# Configs can be set in Configuration class directly or using helper utility
-config.load_kube_config(context=CONTEXT)
+config_loaded = False
+try:
+    config.load_incluster_config()
+    config_loaded = True
+except Exception as e:
+    LOGGER.warning('Could not load in-cluster config.')
+    try:
+        config.load_kube_config(context=CONTEXT)
+        config_loaded = True
+    except Exception as e:
+        LOGGER.warning('Could not load file config.')
+
+if not config_loaded:
+    raise Exception('Could not load any configuration file.')
+
+
 v1 = client.CoreV1Api()
 
 
@@ -40,16 +57,16 @@ def _delete_resource(list, resource: str, delete_func):
     if resource not in CLEAN_RESOURCES:
         print(f'skip {resource}s')
         return
-    print(f"Delete {resource} older than {CUTOFFHR} hours")
+    LOGGER.info(f"Delete {resource} older than {CUTOFFHR} hours")
     now = datetime.now(timezone.utc)
     for i in list.items:
         diff = now - i.metadata.creation_timestamp
         hdiff = diff.total_seconds() / 3600
         if i.metadata.name.startswith(RESOURCE_PREFIX) and hdiff > CUTOFFHR:
-            print(
+            LOGGER.info(
                 f'{resource} {i.metadata.name} created at {i.metadata.creation_timestamp} is {diff.total_seconds() / 3600} hours old, deleting ...')
             delete_func(name=i.metadata.name, namespace=NAMESPACE)
-    print(f'done deleting {resource}\n\n')
+    LOGGER.info(f'done deleting {resource}\n\n')
 
 
 count = 0
@@ -68,4 +85,4 @@ while count < RETRY:
 if count >= RETRY:
     raise Exception('I was not able to delete all resources')
 
-print('Exiting script')
+LOGGER.info('Exiting script')

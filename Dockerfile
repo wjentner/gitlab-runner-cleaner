@@ -1,4 +1,6 @@
 FROM python:3.11-alpine
+LABEL maintainer="Wolfgang Jentner"
+LABEL repository="github.com/wjentner/gitlab-runner-cleaner"
 
 WORKDIR /app
 

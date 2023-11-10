@@ -26,5 +26,36 @@ The script can be configured using environment variables.
 
 ### Docker
 
+```shell
+docker run --rm -v ~/.kube/config:/root/.kube/config -e GRC_NAMESPACE=<GITLAB-RUNNER-NAMESPACE> ghcr.io/wjentner/gitlab-runner-cleaner:latest
+```
+
 ### Docker-compose
+
+This file mounts your default kubernetes config into the container.
+Make sure to adjust the environment variables.
+
+Docker compose file:
+```yaml
+services:
+  clean_runners:
+    image: ghcr.io/wjentner/gitlab-runner-cleaner:latest
+    volumes:
+      # Linux / Mac
+      - '~/.kube/config:/root/.kube/config'
+      # Windows
+      - 
+    environment:
+      GRC_NAMESPACE: '<GITLAB RUNNER NAMESPACE>'
+      # GRC_CONTEXT: '<KUBERNETES CONTEXT>'
+      # GRC_HOUR_THRESHOLD: 1.5
+      # GRC_RESOURCE_PREFIX: 'runner-'
+      # GRC_RESOURCES: 'pod,secret,configmap'
+      # GRC_NUM_RETRIES: 10
+```
+
+Now run:
+```shell
+docker compose run clean_runners
+```
 

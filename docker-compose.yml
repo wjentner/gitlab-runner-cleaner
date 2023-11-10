@@ -1,8 +1,6 @@
-version: '3.12'
-
 services:
   clean_runners:
-    image: wjentner.io/gitlab-clean-runners:latest
+    image: ghcr.io/wjentner/gitlab-runner-cleaner:latest
     build:
       context: .
       dockerfile: Dockerfile
